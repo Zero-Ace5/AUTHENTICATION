@@ -1,0 +1,53 @@
+{% extends "accounts/base.html" %}
+{% block title %}Dashboard{% endblock %}
+
+{% block content %}
+<input type="hidden" id="csrf-token" value="{{ csrf_token }}">
+
+<div class="card">
+    <h2>Welcome {{ user.name }}</h2>
+
+    <p><strong>Email:</strong> {{ user.email }}</p>
+    <p><strong>User type:</strong> {{ user.user_type|title }}</p>
+</div>
+
+<!-- Profile Completion Modal -->
+<div class="modal {% if not needs_profile %}hidden{% endif %}" id="profileModal">
+    <div class="card">
+        <h2>Complete Profile</h2>
+        <p>You can skip this for now</p>
+
+        <input id="name" placeholder="Your name">
+
+        <button onclick="saveProfile()">Save</button>
+        <button class="secondary" onclick="skipProfile()">Skip</button>
+    </div>
+</div>
+
+<script>
+    function csrf() {
+        return document.getElementById("csrf-token").value;
+    }
+
+    function saveProfile() {
+        fetch("/api/profile/update/", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "X-CSRFToken": csrf(),
+            },
+            credentials: "same-origin",
+            body: JSON.stringify({
+                name: document.getElementById("name").value
+            })
+        }).then(() => {
+            document.getElementById("profileModal").classList.add("hidden");
+            location.reload();
+        });
+    }
+
+    function skipProfile() {
+        document.getElementById("profileModal").classList.add("hidden");
+    }
+</script>
+{% endblock %}

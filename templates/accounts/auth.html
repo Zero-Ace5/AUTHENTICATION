@@ -1,0 +1,139 @@
+{% extends "accounts/base.html" %}
+{% block title %}Login{% endblock %}
+
+{% block content %}
+<input type="hidden" id="csrf-token" value="{{ csrf_token }}">
+
+<div class="card">
+    <h2>Authenticate</h2>
+    <p>Enter your email and select your role</p>
+
+    <input id="email" type="email" placeholder="you@example.com">
+
+    <div class="role-group">
+        <button class="role-btn" onclick="selectRole(this, 'student')">Student</button>
+        <button class="role-btn" onclick="selectRole(this, 'teacher')">Teacher</button>
+        <button class="role-btn" onclick="selectRole(this, 'organization')">Organization</button>
+    </div>
+
+    <!-- Inline error box -->
+    <p id="authError" style="color:#d32f2f; display:none; margin-bottom:12px;"></p>
+
+    <button onclick="startAuth()">Send OTP</button>
+</div>
+
+<!-- OTP Modal -->
+<div class="modal hidden" id="otpModal">
+    <div class="card">
+        <h2>Enter OTP</h2>
+        <input id="otp" placeholder="6-digit OTP">
+
+        <p id="otpError" style="color:#d32f2f; display:none;"></p>
+
+        <button onclick="verifyOtp()">Verify</button>
+    </div>
+</div>
+
+<script>
+    let userType = null;
+
+    function csrf() {
+        return document.getElementById("csrf-token").value;
+    }
+
+    /* Role selection + visual state */
+    function selectRole(btn, role) {
+        userType = role;
+
+        document.querySelectorAll(".role-btn").forEach(b => {
+            b.classList.remove("active");
+        });
+
+        btn.classList.add("active");
+    }
+
+    function startAuth() {
+        const email = document.getElementById("email").value.trim();
+        const errorBox = document.getElementById("authError");
+
+        errorBox.style.display = "none";
+
+        if (!email) {
+            errorBox.innerText = "Email is required";
+            errorBox.style.display = "block";
+            return;
+        }
+
+        if (!userType) {
+            errorBox.innerText = "Please select a role";
+            errorBox.style.display = "block";
+            return;
+        }
+
+        fetch("/api/auth/start/", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "X-CSRFToken": csrf(),
+            },
+            credentials: "same-origin",
+            body: JSON.stringify({
+                email: email,
+                user_type: userType
+            })
+        })
+            .then(async r => {
+                const data = await r.json().catch(() => ({}));
+
+                if (!r.ok) {
+                    throw new Error(data.error || "Something went wrong");
+                }
+
+                return data;
+            })
+            .then(() => {
+                // ✅ ONLY here OTP modal opens
+                document.getElementById("otpModal").classList.remove("hidden");
+            })
+            .catch(err => {
+                // ✅ Handles SMTP failure, 500, JSON errors, etc.
+                errorBox.innerText = err.message;
+                errorBox.style.display = "block";
+            });
+    }
+
+
+    function verifyOtp() {
+        const otp = document.getElementById("otp").value.trim();
+        const otpError = document.getElementById("otpError");
+
+        otpError.style.display = "none";
+
+        if (!otp) {
+            otpError.innerText = "OTP is required";
+            otpError.style.display = "block";
+            return;
+        }
+
+        fetch("/api/auth/verify/", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "X-CSRFToken": csrf(),
+            },
+            credentials: "same-origin",
+            body: JSON.stringify({ otp })
+        })
+            .then(r => r.json())
+            .then(data => {
+                if (data.error) {
+                    otpError.innerText = data.error;
+                    otpError.style.display = "block";
+                    return;
+                }
+
+                window.location.href = "/dashboard/";
+            });
+    }
+</script>
+{% endblock %}

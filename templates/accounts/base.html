@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>{% block title %}App{% endblock %}</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <style>
+        :root {
+            --primary: #1976d2;
+            --primary-dark: #115293;
+            --bg: #f5f7fb;
+            --card: #ffffff;
+            --text: #1f2937;
+            --muted: #6b7280;
+            --radius: 12px;
+            --shadow: 0 10px 25px rgba(0, 0, 0, 0.08);
+        }
+
+        * {
+            box-sizing: border-box;
+            font-family: "Inter", system-ui, -apple-system;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            background: var(--bg);
+        }
+
+        header {
+            background: white;
+            padding: 16px 24px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            font-weight: 700;
+            color: var(--primary);
+        }
+
+        .user-meta {
+            font-size: 14px;
+            color: var(--muted);
+        }
+
+        main {
+            display: flex;
+            justify-content: center;
+            padding: 60px 16px;
+        }
+
+        .card {
+            width: 100%;
+            max-width: 420px;
+            background: var(--card);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            padding: 28px;
+        }
+
+        h2 {
+            margin: 0 0 12px;
+            color: var(--text);
+        }
+
+        p {
+            margin: 0 0 20px;
+            color: var(--muted);
+            font-size: 14px;
+        }
+
+        input {
+            width: 100%;
+            padding: 12px;
+            border-radius: 8px;
+            border: 1px solid #d1d5db;
+            font-size: 14px;
+            margin-bottom: 14px;
+        }
+
+        button {
+            width: 100%;
+            padding: 12px;
+            border: none;
+            border-radius: 8px;
+            background: var(--primary);
+            color: white;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        button.secondary {
+            background: #e5e7eb;
+            color: #111827;
+            margin-top: 8px;
+        }
+
+        .modal {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.4);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .role-group {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        .role-btn {
+            flex: 1;
+            padding: 12px;
+            border-radius: 8px;
+            border: 1px solid #d1d5db;
+            background: #e5e7eb;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .role-btn.active {
+            background: #1976d2;
+            color: white;
+            border-color: #1976d2;
+        }
+    </style>
+
+    {% block head %}{% endblock %}
+</head>
+
+<body>
+
+    <header>
+        <div class="logo">Authentication</div>
+
+        {% if user.is_authenticated %}
+        <form method="post" action="/logout/" style="display:flex; gap:12px; align-items:center;">
+            {% csrf_token %}
+            <span class="user-meta">{{ user.user_type|title }}</span>
+            <button style="
+      padding:6px 12px;
+      border-radius:6px;
+      border:none;
+      background:#e5e7eb;
+      cursor:pointer;
+      font-weight:600;
+    ">
+                Logout
+            </button>
+        </form>
+        {% endif %}
+    </header>
+
+
+    <main>
+        {% block content %}{% endblock %}
+    </main>
+
+</body>
+
+</html>
