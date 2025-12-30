@@ -1,0 +1,80 @@
+{% extends "accounts/base.html" %}
+
+{% block content %}
+<div class="dashboard-container">
+
+    <!-- LEFT: Profile card -->
+    <div class="card profile-card" id="profileCard">
+        <div class="profile-photo" id="profilePhoto">
+            <div class="photo-placeholder">?</div>
+        </div>
+
+        <h2 class="profile-name" id="profileName">Loading…</h2>
+        <p class="profile-email" id="profileEmail"></p>
+
+        <a href="{% url 'personal_info:edit_profile' %}" class="btn">
+            Edit Profile
+        </a>
+    </div>
+
+    <!-- RIGHT: Education card -->
+    <div class="card education-card">
+        <div class="card-header">
+            <h2>Educational Achievements</h2>
+            <a href="#" class="btn-outline small">Edit</a>
+        </div>
+
+        <p class="muted" id="educationStatus">
+            Loading education records…
+        </p>
+    </div>
+
+</div>
+
+<script>
+    fetch("/personal-info/api/profile/me/", {
+        credentials: "same-origin"
+    })
+        .then(res => {
+            if (!res.ok) throw new Error("Failed to load profile");
+            return res.json();
+        })
+        .then(data => {
+            // Name
+            document.getElementById("profileName").innerText =
+                data.display_name || data.name;
+
+            // Email
+            document.getElementById("profileEmail").innerText = data.email;
+
+            // Photo
+            const photoBox = document.getElementById("profilePhoto");
+            photoBox.innerHTML = "";
+
+            if (data.photo) {
+                const img = document.createElement("img");
+                img.src = data.photo;
+                img.alt = "Profile photo";
+                photoBox.appendChild(img);
+            } else {
+                const placeholder = document.createElement("div");
+                placeholder.className = "photo-placeholder";
+                placeholder.innerText = (data.display_name || data.name || "?")[0].toUpperCase();
+                photoBox.appendChild(placeholder);
+            }
+
+            // Education
+            const edu = document.getElementById("educationStatus");
+            edu.innerText = data.education?.length
+                ? `${data.education.length} record(s)`
+                : "No education records yet.";
+        })
+        .catch(() => {
+            document.getElementById("profileCard").innerHTML = `
+        <div class="photo-placeholder">?</div>
+        <h2>Error loading profile</h2>
+        <a href="{% url 'personal_info:edit_profile' %}" class="btn">Edit Profile</a>
+    `;
+        });
+</script>
+{% endblock %}

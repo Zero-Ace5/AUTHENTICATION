@@ -46,6 +46,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'AUTH',
     "rest_framework",
+    "personal_info",
 ]
 
 MIDDLEWARE = [
@@ -159,7 +160,7 @@ DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL")
 # )
 
 LOGIN_URL = "/"
-LOGIN_REDIRECT_URL = "/dashboard/"
+LOGIN_REDIRECT_URL = "/personal-info/"
 LOGOUT_REDIRECT_URL = "/"
 
 
@@ -178,3 +179,6 @@ SESSION_COOKIE_AGE = 60 * 60 * 4  # 4 hours
 CSRF_COOKIE_HTTPONLY = True
 CSRF_COOKIE_SAMESITE = "Lax"
 # CSRF_COOKIE_SECURE = True  # enable on HTTPS
+
+MEDIA_URL = "/media/"
+MEDIA_ROOT = BASE_DIR / "media"

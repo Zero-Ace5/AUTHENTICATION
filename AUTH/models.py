@@ -38,5 +38,14 @@ class User(AbstractBaseUser):
             self.name = f"USER_{self.id}"
             super().save(update_fields=["name"])
 
+    @property
+    def safe_profile(self):
+        from personal_info.models import Profile
+        profile, _ = Profile.objects.get_or_create(
+            user=self,
+            defaults={"display_name": self.name}
+        )
+        return profile
+
     def __str__(self):
         return self.email

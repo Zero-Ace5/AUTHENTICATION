@@ -8,22 +8,8 @@ from django.views.decorators.http import require_POST
 
 def auth_page(request):
     if request.user.is_authenticated:
-        return redirect("/dashboard/")
+        return redirect("personal_info:dashboard")
     return render(request, "accounts/auth.html")
-
-
-@login_required
-def dashboard(request):
-    user = request.user
-
-    needs_profile = (
-        not user.name or user.name.startswith("USER_")
-    )
-
-    return render(request, "accounts/dashboard.html", {
-        "user": user,
-        "needs_profile": needs_profile,
-    })
 
 
 @require_POST

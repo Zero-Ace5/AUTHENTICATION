@@ -1,0 +1,103 @@
+{% extends "accounts/base.html" %}
+
+{% block content %}
+<div class="card edit-profile-card">
+    <h2>Edit Profile</h2>
+
+    <!-- Avatar preview -->
+    <div class="avatar-wrapper">
+        <img id="photoPreview" class="avatar" alt="Profile photo" />
+        <div id="avatarFallback" class="avatar avatar-fallback">?</div>
+    </div>
+
+    <label>
+        Display name
+        <input id="displayName" type="text" placeholder="Your name">
+    </label>
+
+    <label>
+        Profile photo
+        <input id="photoInput" type="file" accept="image/*">
+    </label>
+
+    <button onclick="saveProfile()">Save</button>
+</div>
+
+<script>
+    const csrfToken = "{{ csrf_token }}";
+
+    const nameInput = document.getElementById("displayName");
+    const photoInput = document.getElementById("photoInput");
+    const previewImg = document.getElementById("photoPreview");
+    const fallback = document.getElementById("avatarFallback");
+
+    function showFallback(letter) {
+        previewImg.style.display = "none";
+        fallback.style.display = "flex";
+        fallback.innerText = letter || "?";
+    }
+
+    function showImage(src) {
+        previewImg.src = src;
+        previewImg.style.display = "block";
+        fallback.style.display = "none";
+    }
+
+    /* Load current profile */
+    async function loadProfile() {
+        const res = await fetch("/personal-info/api/profile/me/", {
+            credentials: "same-origin"
+        });
+
+        if (!res.ok) return;
+
+        const data = await res.json();
+
+        nameInput.value = data.display_name || "";
+
+        if (data.photo) {
+            showImage(data.photo);
+        } else {
+            const letter = (data.display_name || data.email || "?")[0].toUpperCase();
+            showFallback(letter);
+        }
+    }
+
+    /* Live image preview */
+    photoInput.addEventListener("change", () => {
+        const file = photoInput.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = () => showImage(reader.result);
+        reader.readAsDataURL(file);
+    });
+
+    /* Save profile */
+    async function saveProfile() {
+        const formData = new FormData();
+        formData.append("display_name", nameInput.value.trim());
+
+        if (photoInput.files[0]) {
+            formData.append("photo", photoInput.files[0]);
+        }
+
+        const res = await fetch("/personal-info/api/profile/me/", {
+            method: "PATCH",
+            credentials: "same-origin",
+            headers: {
+                "X-CSRFToken": csrfToken,
+            },
+            body: formData,
+        });
+
+        if (res.ok) {
+            window.location.href = "/personal-info/";
+        } else {
+            alert("Failed to update profile");
+        }
+    }
+
+    loadProfile();
+</script>
+{% endblock %}
