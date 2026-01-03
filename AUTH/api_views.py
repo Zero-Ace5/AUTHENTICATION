@@ -2,10 +2,8 @@ from django.core.cache import cache
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from django.contrib.auth import login
-
-from django.core.validators import validate_email
-from django.core.exceptions import ValidationError
-from django.core.mail import send_mail
+from django.conf import settings
+from django.db import IntegrityError
 
 from .models import User
 from .utils import generate_otp
@@ -14,95 +12,91 @@ from .emails import send_signup_mail, send_login_email
 
 @api_view(["POST"])
 def start_auth(request):
-    email = request.data.get("email")
-    user_type = request.data.get("user_type")
+    email = request.data.get("email", "").strip().lower()
+    user_type = request.data.get("user_type", "").strip().lower()
 
-    if not email or not user_type:
-        return Response({"error": "Email and User type required."}, status=400)
+    if not email or user_type not in {"student", "teacher", "organization"}:
+        return Response({"error": "Invalid data."}, status=400)
 
-    email = email.strip().lower()
-    user_type = user_type.strip().lower()
-
-    try:
-        validate_email(email)
-    except ValidationError:
-        return Response({"error": "Invalid email address"}, status=400)
-
-    if user_type not in {"student", "teacher", "organization"}:
-        return Response({"error": "Invalid user type."}, status=400)
+    # Cache-aside to prevent DB slams
+    user_exists = cache.get(f"user_exists:{email}")
+    if user_exists is None:
+        user_exists = User.objects.filter(email=email).exists()
+        cache.set(f"user_exists:{email}", user_exists, timeout=3600)
 
     otp = generate_otp()
-
-    user_exists = User.objects.filter(email=email).exists()
-
     cache.set(
         f"auth:otp:{email}",
-        {
-            "otp": str(otp),
-            "user_type": user_type,
-            "is_new": not user_exists,
-        }, timeout=300,
+        {"otp": str(otp), "user_type": user_type},
+        timeout=300,
     )
 
-    request.session["auth_email"] = email
-    try:
-        if user_exists:
-            send_login_email(email, otp)
-        else:
-            send_signup_mail(email, otp, user_type)
-    except Exception:
-        cache.delete(f"auth:otp:{email}")
-        request.session.pop("auth_email", None)
-        return Response(
-            {"error": "Failed to send email. Please try again."},
-            status=500
-        )
+    if not settings.LOAD_TESTING:
+        try:
+            if user_exists:
+                send_login_email(email, otp)
+            else:
+                send_signup_mail(email, otp, user_type)
+        except Exception:
+            return Response({"error": "Mail server busy"}, status=500)
 
+    request.session["auth_email"] = email
     return Response({"status": "OTP Sent."})
 
 
 @api_view(["POST"])
 def verify_otp(request):
+    # 1. Retrieve data from Session and Request
     email = request.session.get("auth_email")
-    otp = request.data.get("otp")
+    otp_input = request.data.get("otp")
 
-    if not email or not otp or not str(otp).isdigit():
-        return Response({"error": "Invalid request"}, status=400)
+    # Fast-fail if session expired or user didn't provide OTP
+    if not email or not otp_input:
+        return Response({"error": "Session expired or missing OTP"}, status=400)
 
-    data = cache.get(f"auth:otp:{email}")
-    if not data or data["otp"] != str(otp):
-        return Response({"error": "Invalid or expired otp"}, status=401)
+    # 2. Retrieve OTP and context from Memurai (Redis)
+    otp_cache_key = f"auth:otp:{email}"
+    cached_data = cache.get(otp_cache_key)
 
-    cache.delete(f"auth:otp:{email}")
-    request.session.pop("auth_email", None)
+    # Validate OTP
+    if not cached_data or cached_data["otp"] != str(otp_input):
+        return Response({"error": "Invalid or expired OTP"}, status=401)
 
-    user, _ = User.objects.get_or_create(
-        email=email,
-        defaults={"user_type": data["user_type"]},
-    )
+    # 3. User & Profile Logic (Optimized for High Load)
+    try:
+        # Check if user exists
+        user = User.objects.get(email=email)
+    except User.DoesNotExist:
+        # Create new user if they don't exist
+        try:
+            user = User.objects.create_user(
+                email=email,
+                user_type=cached_data["user_type"]
+            )
+
+            # Create the Profile immediately (Prevents 'get_or_create' hits later)
+            from personal_info.models import Profile
+            Profile.objects.create(
+                user=user,
+                display_name=user.name
+            )
+
+            # Update existence cache for start_auth view
+            cache.set(f"user_exists:{email}", True, timeout=3600)
+
+        except IntegrityError:
+            # Handle rare race condition where two requests create the same user
+            user = User.objects.get(email=email)
+
+    # 4. Cleanup and Login
+    cache.delete(otp_cache_key)      # OTP is one-time use
+    request.session.pop("auth_email", None)  # Clean up session
 
     login(request, user)
 
-    needs_profile = not user.name or user.name.startswith("USER_")
-
     return Response({
         "status": "ok",
-        "needs_profile_completion": needs_profile,
-        "name": user.name,
         "user_type": user.user_type,
+        "name": user.name,
+        "needs_profile_completion": "USER_" in user.name
     })
-
-
-@api_view(["POST"])
-def update_profile(request):
-    if not request.user.is_authenticated:
-        return Response({"error": "Not authenticated"}, status=401)
-
-    name = request.data.get("name", "").strip()
-    if not name:
-        return Response({"error": "Name required"}, status=400)
-
-    request.user.name = name
-    request.user.save(update_fields=["name"])
-
-    return Response({"status": "profile_updated"})

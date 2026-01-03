@@ -1,5 +1,5 @@
 from django.urls import path
-from .api_views import start_auth, verify_otp, update_profile
+from .api_views import *
 from .views import auth_page, logout_view
 
 urlpatterns = [
@@ -9,5 +9,4 @@ urlpatterns = [
 
     path("api/auth/start/", start_auth),
     path("api/auth/verify/", verify_otp),
-    path("api/profile/update/", update_profile),
 ]

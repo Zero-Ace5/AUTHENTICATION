@@ -13,7 +13,11 @@ def get_profile(user):
 @api_view(["GET", "PATCH"])
 @permission_classes([IsAuthenticated])
 def profile_me(request):
-    profile, _ = Profile.objects.get_or_create(user=request.user)
+    try:
+        profile = Profile.objects.select_related('user').get(user=request.user)
+    except Profile.DoesNotExist:
+        profile = Profile.objects.create(
+            user=request.user, display_name=request.user.name)
 
     if request.method == "GET":
         return Response({
@@ -24,13 +28,11 @@ def profile_me(request):
             "photo": profile.photo.url if profile.photo else None,
         })
 
-    # PATCH
     display_name = request.data.get("display_name")
     photo = request.FILES.get("photo")
 
-    if display_name is not None:
+    if display_name:
         profile.display_name = display_name.strip()
-
     if photo:
         profile.photo = photo
 
