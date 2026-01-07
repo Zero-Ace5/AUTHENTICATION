@@ -187,7 +187,7 @@ CSRF_COOKIE_SAMESITE = "Lax"
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
 
-LOAD_TESTING = True
+LOAD_TESTING = False
 
 # settings.py
 SESSION_ENGINE = "django.contrib.sessions.backends.cache"
@@ -201,4 +201,42 @@ CACHES = {
             "CLIENT_CLASS": "django_redis.client.DefaultClient",
         }
     }
+}
+
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+
+    "formatters": {
+        "audit_json": {
+            "format": (
+                '{"timestamp":"%(asctime)s",'
+                '"event":"%(message)s",'
+                '"user_id":"%(user_id)s",'
+                '"field":"%(field)s",'
+                '"old_value":"%(old_value)s",'
+                '"new_value":"%(new_value)s",'
+                '"ip":"%(ip)s"}'
+            )
+        }
+    },
+
+    "handlers": {
+        "audit_file": {
+            "class": "logging.handlers.RotatingFileHandler",
+            "filename": "C:/logs/django/user_audit.log",  # ✅ WINDOWS PATH
+            "maxBytes": 20 * 1024 * 1024,
+            "backupCount": 5,
+            "formatter": "audit_json",
+            "encoding": "utf-8",  # ✅ important on Windows
+        }
+    },
+
+    "loggers": {
+        "user_audit": {
+            "handlers": ["audit_file"],
+            "level": "INFO",
+            "propagate": False,
+        }
+    },
 }

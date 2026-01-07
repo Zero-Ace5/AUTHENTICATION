@@ -3,6 +3,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from .models import Profile
+from .audit import audit_change
 
 
 def get_profile(user):
@@ -13,6 +14,10 @@ def get_profile(user):
 @api_view(["GET", "PATCH"])
 @permission_classes([IsAuthenticated])
 def profile_me(request):
+
+    if request.method == "PATCH":
+        print("PATCH HIT")
+
     try:
         profile = Profile.objects.select_related('user').get(user=request.user)
     except Profile.DoesNotExist:
@@ -31,10 +36,38 @@ def profile_me(request):
     display_name = request.data.get("display_name")
     photo = request.FILES.get("photo")
 
-    if display_name:
-        profile.display_name = display_name.strip()
-    if photo:
-        profile.photo = photo
+    changed = False
 
-    profile.save()
+    # ---- display_name audit ----
+    if display_name is not None:
+        new_name = display_name.strip()
+        old_name = profile.display_name or request.user.name
+
+        if new_name != old_name:
+            audit_change(
+                request=request,
+                field="display_name",
+                old=old_name,
+                new=new_name,
+            )
+            profile.display_name = new_name
+            changed = True
+
+    # ---- photo audit ----
+    if photo is not None:
+        old_photo = profile.photo.name if profile.photo else None
+        new_photo = photo.name
+
+        audit_change(
+            request=request,
+            field="photo",
+            old=old_photo,
+            new=new_photo,
+        )
+        profile.photo = photo
+        changed = True
+
+    if changed:
+        profile.save()
+
     return Response({"status": "updated"})

@@ -18,7 +18,7 @@ def start_auth(request):
     if not email or user_type not in {"student", "teacher", "organization"}:
         return Response({"error": "Invalid data."}, status=400)
 
-    # Cache-aside to prevent DB slams
+    # Cache
     user_exists = cache.get(f"user_exists:{email}")
     if user_exists is None:
         user_exists = User.objects.filter(email=email).exists()
@@ -50,7 +50,6 @@ def verify_otp(request):
     email = request.session.get("auth_email")
     otp_input = request.data.get("otp")
 
-    # Fast-fail if session expired or user didn't provide OTP
     if not email or not otp_input:
         return Response({"error": "Session expired or missing OTP"}, status=400)
 
@@ -62,7 +61,7 @@ def verify_otp(request):
     if not cached_data or cached_data["otp"] != str(otp_input):
         return Response({"error": "Invalid or expired OTP"}, status=401)
 
-    # 3. User & Profile Logic (Optimized for High Load)
+    # 3. User & Profile Logic
     try:
         # Check if user exists
         user = User.objects.get(email=email)
@@ -74,7 +73,7 @@ def verify_otp(request):
                 user_type=cached_data["user_type"]
             )
 
-            # Create the Profile immediately (Prevents 'get_or_create' hits later)
+            # Create the Profile immediately
             from personal_info.models import Profile
             Profile.objects.create(
                 user=user,
@@ -89,8 +88,8 @@ def verify_otp(request):
             user = User.objects.get(email=email)
 
     # 4. Cleanup and Login
-    cache.delete(otp_cache_key)      # OTP is one-time use
-    request.session.pop("auth_email", None)  # Clean up session
+    cache.delete(otp_cache_key)
+    request.session.pop("auth_email", None)
 
     login(request, user)
 
