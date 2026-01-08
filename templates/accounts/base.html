@@ -238,29 +238,52 @@
     <header>
         <div class="logo">Authentication</div>
 
-        {% if user.is_authenticated %}
-        <form method="post" action="/logout/" style="display:flex; gap:12px; align-items:center;">
-            {% csrf_token %}
-            <span class="user-meta">{{ user.user_type|title }}</span>
-            <button style="
-      padding:6px 12px;
-      border-radius:6px;
-      border:none;
-      background:#e5e7eb;
-      cursor:pointer;
-      font-weight:600;
-    ">
+        <div id="auth-nav" class="hidden" style="display:flex; gap:12px; align-items:center;">
+            <span id="nav-user-type" class="user-meta">User</span>
+            <button onclick="handleLogout()" style="
+                padding:6px 12px;
+                border-radius:6px;
+                border:none;
+                background:#e5e7eb;
+                cursor:pointer;
+                font-weight:600;
+                width: auto; /* Prevent button from stretching full width */
+            ">
                 Logout
             </button>
-        </form>
-        {% endif %}
+        </div>
     </header>
-
 
     <main>
         {% block content %}{% endblock %}
     </main>
 
+    <script>
+        // --- JWT NAV LOGIC ---
+        function updateNav() {
+            const token = localStorage.getItem("access_token");
+            const nav = document.getElementById("auth-nav");
+
+            if (token) {
+                nav.classList.remove("hidden");
+                // Optional: You could decode the token here to show user type 
+                // but for now we just show the logout button
+            } else {
+                nav.classList.add("hidden");
+            }
+        }
+
+        function handleLogout() {
+            // 1. Clear JWT
+            localStorage.removeItem("access_token");
+
+            // 2. Redirect to login
+            window.location.href = "/";
+        }
+
+        // Run on every page load
+        updateNav();
+    </script>
 </body>
 
 </html>

@@ -3,7 +3,6 @@
 {% block content %}
 <div class="dashboard-container">
 
-    <!-- LEFT: Profile card -->
     <div class="card profile-card" id="profileCard">
         <div class="profile-photo" id="profilePhoto">
             <div class="photo-placeholder">?</div>
@@ -17,7 +16,6 @@
         </a>
     </div>
 
-    <!-- RIGHT: Education card -->
     <div class="card education-card">
         <div class="card-header">
             <h2>Educational Achievements</h2>
@@ -32,10 +30,32 @@
 </div>
 
 <script>
+    // --- ADDED: GET TOKEN FROM STORAGE ---
+    const token = localStorage.getItem("access_token");
+
+    // If no token exists, the user isn't logged in via JWT
+    if (!token) {
+        window.location.href = "/"; // Redirect to your auth/login page
+    }
+    // -------------------------------------
+
     fetch("/personal-info/api/profile/me/", {
-        credentials: "same-origin"
+        method: "GET", // Explicitly state method
+        headers: {
+            // --- ADDED: AUTHORIZATION HEADER ---
+            "Authorization": `Bearer ${token}`,
+            "Content-Type": "application/json"
+            // ------------------------------------
+        }
     })
         .then(res => {
+            // --- ADDED: HANDLE UNAUTHORIZED (EXPIRED TOKEN) ---
+            if (res.status === 401) {
+                localStorage.removeItem("access_token");
+                window.location.href = "/";
+                throw new Error("Session expired");
+            }
+            // --------------------------------------------------
             if (!res.ok) throw new Error("Failed to load profile");
             return res.json();
         })
@@ -69,12 +89,14 @@
                 ? `${data.education.length} record(s)`
                 : "No education records yet.";
         })
-        .catch(() => {
+        .catch((err) => {
+            console.error(err);
             document.getElementById("profileCard").innerHTML = `
-        <div class="photo-placeholder">?</div>
-        <h2>Error loading profile</h2>
-        <a href="{% url 'personal_info:edit_profile' %}" class="btn">Edit Profile</a>
-    `;
+                <div class="photo-placeholder">?</div>
+                <h2>Error loading profile</h2>
+                <p>${err.message}</p>
+                <a href="/" class="btn">Return to Login</a>
+            `;
         });
 </script>
 {% endblock %}

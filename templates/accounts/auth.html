@@ -16,13 +16,11 @@
         <button class="role-btn" onclick="selectRole(this, 'organization')">Organization</button>
     </div>
 
-    <!-- Inline error box -->
     <p id="authError" style="color:#d32f2f; display:none; margin-bottom:12px;"></p>
 
     <button onclick="startAuth()">Send OTP</button>
 </div>
 
-<!-- OTP Modal -->
 <div class="modal hidden" id="otpModal">
     <div class="card">
         <h2>Enter OTP</h2>
@@ -35,6 +33,11 @@
 </div>
 
 <script>
+    // --- 1. ROUTE GUARD: If already logged in, skip this page ---
+    if (localStorage.getItem("access_token")) {
+        window.location.href = "/personal-info/";
+    }
+
     let userType = null;
 
     function csrf() {
@@ -44,28 +47,19 @@
     /* Role selection + visual state */
     function selectRole(btn, role) {
         userType = role;
-
         document.querySelectorAll(".role-btn").forEach(b => {
             b.classList.remove("active");
         });
-
         btn.classList.add("active");
     }
 
     function startAuth() {
         const email = document.getElementById("email").value.trim();
         const errorBox = document.getElementById("authError");
-
         errorBox.style.display = "none";
 
-        if (!email) {
-            errorBox.innerText = "Email is required";
-            errorBox.style.display = "block";
-            return;
-        }
-
-        if (!userType) {
-            errorBox.innerText = "Please select a role";
+        if (!email || !userType) {
+            errorBox.innerText = !email ? "Email is required" : "Please select a role";
             errorBox.style.display = "block";
             return;
         }
@@ -76,37 +70,25 @@
                 "Content-Type": "application/json",
                 "X-CSRFToken": csrf(),
             },
-            credentials: "same-origin",
-            body: JSON.stringify({
-                email: email,
-                user_type: userType
-            })
+            body: JSON.stringify({ email: email, user_type: userType })
         })
             .then(async r => {
                 const data = await r.json().catch(() => ({}));
-
-                if (!r.ok) {
-                    throw new Error(data.error || "Something went wrong");
-                }
-
+                if (!r.ok) throw new Error(data.error || "Something went wrong");
                 return data;
             })
             .then(() => {
-                // ✅ ONLY here OTP modal opens
                 document.getElementById("otpModal").classList.remove("hidden");
             })
             .catch(err => {
-                // ✅ Handles SMTP failure, 500, JSON errors, etc.
                 errorBox.innerText = err.message;
                 errorBox.style.display = "block";
             });
     }
 
-
     function verifyOtp() {
         const otp = document.getElementById("otp").value.trim();
         const otpError = document.getElementById("otpError");
-
         otpError.style.display = "none";
 
         if (!otp) {
@@ -121,7 +103,6 @@
                 "Content-Type": "application/json",
                 "X-CSRFToken": csrf(),
             },
-            credentials: "same-origin",
             body: JSON.stringify({ otp })
         })
             .then(r => r.json())
@@ -132,7 +113,18 @@
                     return;
                 }
 
-                window.location.href = "/";
+                // --- 2. SUCCESS: SAVE TOKEN & REDIRECT ---
+                if (data.access) {
+                    // Save the token
+                    localStorage.setItem("access_token", data.access);
+
+                    // Redirect to the dashboard URL (defined in your personal_info:urls)
+                    window.location.href = "/personal-info/";
+                }
+            })
+            .catch(err => {
+                otpError.innerText = "Connection error";
+                otpError.style.display = "block";
             });
     }
 </script>

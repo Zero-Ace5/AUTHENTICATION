@@ -7,28 +7,23 @@ from .audit import audit_change
 
 
 def get_profile(user):
-    # Using your new User model's 'name' as default
-    profile, _ = Profile.objects.get_or_create(
-        user=user,
-        defaults={'display_name': user.name}
-    )
+    profile, _ = Profile.objects.get_or_create(user=user)
     return profile
 
 
 @api_view(["GET", "PATCH"])
 @permission_classes([IsAuthenticated])
 def profile_me(request):
-    # 1. Get or Create Profile
-    # select_related('user') is good for performance
+
+    if request.method == "PATCH":
+        print("PATCH HIT")
+
     try:
         profile = Profile.objects.select_related('user').get(user=request.user)
     except Profile.DoesNotExist:
         profile = Profile.objects.create(
-            user=request.user,
-            display_name=request.user.name
-        )
+            user=request.user, display_name=request.user.name)
 
-    # 2. Handle GET Request
     if request.method == "GET":
         return Response({
             "id": request.user.id,
@@ -36,13 +31,11 @@ def profile_me(request):
             "user_type": request.user.user_type,
             "display_name": profile.display_name or request.user.name,
             "photo": profile.photo.url if profile.photo else None,
-            # Pro tip: you can now include session info if you want
-            "ip_address": request.META.get('REMOTE_ADDR'),
         })
 
-    # 3. Handle PATCH Request
     display_name = request.data.get("display_name")
     photo = request.FILES.get("photo")
+
     changed = False
 
     # ---- display_name audit ----
@@ -51,8 +44,6 @@ def profile_me(request):
         old_name = profile.display_name or request.user.name
 
         if new_name != old_name:
-            # audit_change should now be able to log the IP
-            # because JWT fills request.user and request.META
             audit_change(
                 request=request,
                 field="display_name",
@@ -64,7 +55,7 @@ def profile_me(request):
 
     # ---- photo audit ----
     if photo is not None:
-        old_photo = profile.photo.name if profile.photo else "None"
+        old_photo = profile.photo.name if profile.photo else None
         new_photo = photo.name
 
         audit_change(
@@ -79,8 +70,4 @@ def profile_me(request):
     if changed:
         profile.save()
 
-    return Response({
-        "status": "updated",
-        "display_name": profile.display_name,
-        "photo": profile.photo.url if profile.photo else None
-    })
+    return Response({"status": "updated"})

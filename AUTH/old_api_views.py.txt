@@ -1,18 +1,16 @@
 from django.core.cache import cache
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import api_view
 from rest_framework.response import Response
-from rest_framework.permissions import AllowAny
+from django.contrib.auth import login
 from django.conf import settings
 from django.db import IntegrityError
-from rest_framework_simplejwt.tokens import RefreshToken  # New Import
 
-from .models import User, UserDeviceSession  # Added UserDeviceSession
+from .models import User
 from .utils import generate_otp
 from .emails import send_signup_mail, send_login_email
 
 
 @api_view(["POST"])
-@permission_classes([AllowAny])
 def start_auth(request):
     email = request.data.get("email", "").strip().lower()
     user_type = request.data.get("user_type", "").strip().lower()
@@ -20,6 +18,7 @@ def start_auth(request):
     if not email or user_type not in {"student", "teacher", "organization"}:
         return Response({"error": "Invalid data."}, status=400)
 
+    # Cache
     user_exists = cache.get(f"user_exists:{email}")
     if user_exists is None:
         user_exists = User.objects.filter(email=email).exists()
@@ -41,79 +40,62 @@ def start_auth(request):
         except Exception:
             return Response({"error": "Mail server busy"}, status=500)
 
-    # We still use the Django session temporarily just to hold the email
-    # until verify_otp is called.
     request.session["auth_email"] = email
     return Response({"status": "OTP Sent."})
 
 
 @api_view(["POST"])
-@permission_classes([AllowAny])
 def verify_otp(request):
+    # 1. Retrieve data from Session and Request
     email = request.session.get("auth_email")
     otp_input = request.data.get("otp")
 
     if not email or not otp_input:
         return Response({"error": "Session expired or missing OTP"}, status=400)
 
+    # 2. Retrieve OTP and context from Memurai (Redis)
     otp_cache_key = f"auth:otp:{email}"
     cached_data = cache.get(otp_cache_key)
 
+    # Validate OTP
     if not cached_data or cached_data["otp"] != str(otp_input):
         return Response({"error": "Invalid or expired OTP"}, status=401)
 
+    # 3. User & Profile Logic
     try:
+        # Check if user exists
         user = User.objects.get(email=email)
     except User.DoesNotExist:
+        # Create new user if they don't exist
         try:
             user = User.objects.create_user(
                 email=email,
                 user_type=cached_data["user_type"]
             )
+
+            # Create the Profile immediately
             from personal_info.models import Profile
-            Profile.objects.create(user=user, display_name=user.name)
+            Profile.objects.create(
+                user=user,
+                display_name=user.name
+            )
+
+            # Update existence cache for start_auth view
             cache.set(f"user_exists:{email}", True, timeout=3600)
+
         except IntegrityError:
+            # Handle rare race condition where two requests create the same user
             user = User.objects.get(email=email)
 
-    # --- JWT & SESSION TRACKING LOGIC ---
-
-    # 1. Generate Tokens
-    refresh = RefreshToken.for_user(user)
-
-    # 2. Track Device/IP
-    ip_address = request.META.get('REMOTE_ADDR')
-    user_agent = request.META.get('HTTP_USER_AGENT', 'unknown')
-
-    UserDeviceSession.objects.create(
-        user=user,
-        jti=refresh['jti'],  # Unique ID for this specific token
-        ip_address=ip_address,
-        user_agent=user_agent
-    )
-
-    # 3. Cleanup
+    # 4. Cleanup and Login
     cache.delete(otp_cache_key)
-    request.session.flush()  # Clears the temporary auth_email session
+    request.session.pop("auth_email", None)
 
-    # 4. Prepare Response
-    response = Response({
+    login(request, user)
+
+    return Response({
         "status": "ok",
-        "access": str(refresh.access_token),  # React saves this in memory
         "user_type": user.user_type,
         "name": user.name,
         "needs_profile_completion": "USER_" in user.name
     })
-
-    # 5. Set Refresh Token in HttpOnly Cookie
-    # This is secure and can't be accessed by JS (XSS protection)
-    response.set_cookie(
-        key='refresh_token',
-        value=str(refresh),
-        httponly=True,
-        secure=True,     # Set to False if only testing on localhost without HTTPS
-        samesite='Lax',
-        path='/api/token/refresh/',  # Only send cookie to the refresh endpoint
-    )
-
-    return response

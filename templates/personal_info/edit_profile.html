@@ -4,9 +4,8 @@
 <div class="card edit-profile-card">
     <h2>Edit Profile</h2>
 
-    <!-- Avatar preview -->
     <div class="avatar-wrapper">
-        <img id="photoPreview" class="avatar" alt="Profile photo" />
+        <img id="photoPreview" class="avatar" alt="Profile photo" style="display:none;" />
         <div id="avatarFallback" class="avatar avatar-fallback">?</div>
     </div>
 
@@ -25,6 +24,8 @@
 
 <script>
     const csrfToken = "{{ csrf_token }}";
+    // --- ADDED: GET TOKEN FROM STORAGE ---
+    const token = localStorage.getItem("access_token");
 
     const nameInput = document.getElementById("displayName");
     const photoInput = document.getElementById("photoInput");
@@ -45,14 +46,24 @@
 
     /* Load current profile */
     async function loadProfile() {
+        if (!token) { window.location.href = "/"; return; }
+
         const res = await fetch("/personal-info/api/profile/me/", {
-            credentials: "same-origin"
+            method: "GET",
+            headers: {
+                // --- ADDED: AUTHORIZATION HEADER ---
+                "Authorization": `Bearer ${token}`
+            }
         });
+
+        if (res.status === 401) {
+            window.location.href = "/";
+            return;
+        }
 
         if (!res.ok) return;
 
         const data = await res.json();
-
         nameInput.value = data.display_name || "";
 
         if (data.photo) {
@@ -84,15 +95,20 @@
 
         const res = await fetch("/personal-info/api/profile/me/", {
             method: "PATCH",
-            credentials: "same-origin",
             headers: {
                 "X-CSRFToken": csrfToken,
+                // --- ADDED: AUTHORIZATION HEADER ---
+                "Authorization": `Bearer ${token}`
+                // Note: Do NOT set Content-Type for FormData
             },
             body: formData,
         });
 
         if (res.ok) {
             window.location.href = "/personal-info/";
+        } else if (res.status === 401) {
+            alert("Session expired. Please login again.");
+            window.location.href = "/";
         } else {
             alert("Failed to update profile");
         }
