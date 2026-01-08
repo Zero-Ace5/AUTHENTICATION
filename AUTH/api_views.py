@@ -1,5 +1,6 @@
 from django.core.cache import cache
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import api_view, permission_classes, authentication_classes
+from django.views.decorators.csrf import csrf_exempt
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny
 from django.conf import settings
@@ -9,6 +10,8 @@ from rest_framework_simplejwt.tokens import RefreshToken  # New Import
 from .models import User, UserDeviceSession  # Added UserDeviceSession
 from .utils import generate_otp
 from .emails import send_signup_mail, send_login_email
+
+from rest_framework_simplejwt.tokens import RefreshToken
 
 
 @api_view(["POST"])
@@ -47,10 +50,12 @@ def start_auth(request):
     return Response({"status": "OTP Sent."})
 
 
+@csrf_exempt
 @api_view(["POST"])
 @permission_classes([AllowAny])
+@authentication_classes([])
 def verify_otp(request):
-    email = request.session.get("auth_email")
+    email = request.data.get("email") or request.session.get("auth_email")
     otp_input = request.data.get("otp")
 
     if not email or not otp_input:
@@ -116,4 +121,29 @@ def verify_otp(request):
         path='/api/token/refresh/',  # Only send cookie to the refresh endpoint
     )
 
+    return response
+
+
+@api_view(["POST"])
+@permission_classes([AllowAny])  # Anyone can attempt to logout
+def logout_api(request):
+    # 1. Get the refresh token from the cookie
+    refresh_token = request.COOKIES.get('refresh_token')
+
+    response = Response({"status": "logged out"})
+
+    if refresh_token:
+        try:
+            # 2. Blacklist the token so it can't be used again
+            token = RefreshToken(refresh_token)
+            jti = token['jti']
+            token.blacklist()
+
+            # 3. Mark your custom device session as inactive
+            UserDeviceSession.objects.filter(jti=jti).update(is_active=False)
+        except Exception:
+            pass  # Token might already be expired or invalid
+
+    # 4. Delete the HttpOnly cookie from the browser
+    response.delete_cookie('refresh_token', path='/api/token/refresh/')
     return response

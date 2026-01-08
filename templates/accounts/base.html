@@ -266,18 +266,31 @@
 
             if (token) {
                 nav.classList.remove("hidden");
-                // Optional: You could decode the token here to show user type 
-                // but for now we just show the logout button
             } else {
                 nav.classList.add("hidden");
             }
         }
 
-        function handleLogout() {
-            // 1. Clear JWT
+        async function handleLogout() {
+            const token = localStorage.getItem("access_token");
+
+            // 1. Tell the Backend to blacklist the cookie and kill the session
+            try {
+                await fetch("/api/auth/logout/", {
+                    method: "POST",
+                    headers: {
+                        "Authorization": `Bearer ${token}`,
+                        "Content-Type": "application/json"
+                    }
+                });
+            } catch (err) {
+                console.error("Logout API failed, but clearing local storage anyway.");
+            }
+
+            // 2. Clear local Access Token
             localStorage.removeItem("access_token");
 
-            // 2. Redirect to login
+            // 3. Redirect to login
             window.location.href = "/";
         }
 

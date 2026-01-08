@@ -48,6 +48,7 @@ INSTALLED_APPS = [
     "rest_framework",
     "personal_info",
     'rest_framework_simplejwt.token_blacklist',
+    'corsheaders',
 ]
 
 MIDDLEWARE = [
@@ -58,7 +59,21 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'corsheaders.middleware.CorsMiddleware',
 ]
+
+CORS_ALLOW_ALL_ORIGINS = True  # Allows React to talk to Django
+CORS_ALLOW_CREDENTIALS = True  # Allows the HttpOnly Cookie to be sent
+
+# 2. Allow the React URL
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:3000",
+]
+
+# 3. Ensure CSRF/Session cookies allow cross-site (for development)
+SESSION_COOKIE_SAMESITE = 'Lax'
+CSRF_COOKIE_SAMESITE = 'Lax'
+
 
 ROOT_URLCONF = 'AUTHENTICATION.urls'
 

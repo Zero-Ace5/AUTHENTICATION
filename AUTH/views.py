@@ -10,12 +10,12 @@ from django.views.decorators.csrf import ensure_csrf_cookie
 
 @ensure_csrf_cookie
 def auth_page(request):
-    if request.user.is_authenticated:
-        return redirect("personal_info:dashboard")
+    # if request.user.is_authenticated:
+    #     return redirect("personal_info:dashboard")
     return render(request, "accounts/auth.html")
 
 
 @require_POST
 def logout_view(request):
-    logout(request)
+    # logout(request)
     return redirect("/")
